@@ -1,7 +1,7 @@
 import os
 from dotenv import load_dotenv
 import sqlite3
-from fastapi import FastAPI, Response
+from fastapi import FastAPI, Response, Header
 from pydantic import BaseModel
 from fastapi import HTTPException
 from supabase import create_client, Client
@@ -116,6 +116,43 @@ def login(data: AuthRequest):
             status_code=401,
             detail="Invalid email or password"
         )
+    
+@app.get("/public/info")
+def public_info():
+    return {
+        "message": "This is a public endpoint",
+        "auth_required": False
+    }
+
+
+@app.get("/protected/profile")
+def protected_profile(authorization: str | None = Header(default=None)):
+
+    if authorization is None:
+        raise HTTPException(
+            status_code=401,
+            detail="Authorization header is required"
+        )
+
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid authorization header"
+        )
+
+    token = authorization.replace("Bearer ", "", 1).strip()
+
+    if not token:
+        raise HTTPException(
+            status_code=401,
+            detail="Bearer token is required"
+        )
+
+    return {
+        "message": "Protected profile accessed",
+        "token_received": True
+    }
+
 @app.get("/tasks")
 def tasks():
     db = get_db()
