@@ -2,6 +2,7 @@ import os
 import sqlite3
 from dotenv import load_dotenv
 from fastapi import FastAPI, Response, Header, Depends, HTTPException
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from supabase import create_client, Client
 
@@ -15,6 +16,7 @@ supabase: Client = create_client(SUPABASE_URL,SUPABASE_KEY)
 app = FastAPI()
 DB_NAME = "tasks.db"
 
+security = HTTPBearer()
 
 def get_db():
     return sqlite3.connect(DB_NAME)
@@ -116,27 +118,10 @@ def login(data: AuthRequest):
             detail="Invalid email or password"
         )
     
-def get_current_user(authorization: str | None = Header(default=None)):
-
-    if authorization is None:
-        raise HTTPException(
-            status_code=401,
-            detail="Authorization header is required"
-        )
-
-    if not authorization.startswith("Bearer "):
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid authorization header"
-        )
-
-    token = authorization.replace("Bearer ", "", 1).strip()
-
-    if not token:
-        raise HTTPException(
-            status_code=401,
-            detail="Bearer token is required"
-        )
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+    token = credentials.credentials
 
     try:
         response = supabase.auth.get_user(token)
@@ -156,8 +141,8 @@ def get_current_user(authorization: str | None = Header(default=None)):
         raise HTTPException(
             status_code=401,
             detail="Invalid or expired token"
-        )    
-    
+        )
+        
 @app.get("/public/info")
 def public_info():
     return {
