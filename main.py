@@ -1,9 +1,8 @@
 import os
-from dotenv import load_dotenv
 import sqlite3
-from fastapi import FastAPI, Response, Header
+from dotenv import load_dotenv
+from fastapi import FastAPI, Response, Header, Depends, HTTPException
 from pydantic import BaseModel
-from fastapi import HTTPException
 from supabase import create_client, Client
 
 load_dotenv()
@@ -11,7 +10,7 @@ load_dotenv()
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
-supabase: Client =create_client(SUPABASE_URL,SUPABASE_KEY) 
+supabase: Client = create_client(SUPABASE_URL,SUPABASE_KEY) 
 
 app = FastAPI()
 DB_NAME = "tasks.db"
@@ -117,16 +116,7 @@ def login(data: AuthRequest):
             detail="Invalid email or password"
         )
     
-@app.get("/public/info")
-def public_info():
-    return {
-        "message": "This is a public endpoint",
-        "auth_required": False
-    }
-
-# Stage 3: profile route token verification
-@app.get("/protected/profile")
-def protected_profile(authorization: str | None = Header(default=None)):
+def get_current_user(authorization: str | None = Header(default=None)):
 
     if authorization is None:
         raise HTTPException(
@@ -157,10 +147,7 @@ def protected_profile(authorization: str | None = Header(default=None)):
                 detail="Invalid or expired token"
             )
 
-        return {
-            "message": "Protected profile accessed",
-            "user": response.user
-        }
+        return response.user
 
     except HTTPException:
         raise
@@ -169,7 +156,37 @@ def protected_profile(authorization: str | None = Header(default=None)):
         raise HTTPException(
             status_code=401,
             detail="Invalid or expired token"
-        )
+        )    
+    
+@app.get("/public/info")
+def public_info():
+    return {
+        "message": "This is a public endpoint",
+        "auth_required": False
+    }
+
+# Protected routes using reusable auth dependency
+@app.get("/protected/profile")
+def protected_profile(current_user=Depends(get_current_user)):
+
+    return {
+        "message": "Protected profile accessed",
+        "user": current_user
+    }
+
+@app.get("/protected/dashboard")
+def protected_dashboard(current_user=Depends(get_current_user)):
+
+    return {
+        "message": "Protected dashboard accessed",
+        "user": current_user
+    }
+
+@app.post("/auth/logout", status_code=204)
+def logout(current_user=Depends(get_current_user)):
+
+    return Response(status_code=204)
+
 @app.get("/tasks")
 def tasks():
     db = get_db()
