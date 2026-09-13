@@ -124,7 +124,7 @@ def public_info():
         "auth_required": False
     }
 
-
+# Stage 3: profile route token verification
 @app.get("/protected/profile")
 def protected_profile(authorization: str | None = Header(default=None)):
 
@@ -148,11 +148,28 @@ def protected_profile(authorization: str | None = Header(default=None)):
             detail="Bearer token is required"
         )
 
-    return {
-        "message": "Protected profile accessed",
-        "token_received": True
-    }
+    try:
+        response = supabase.auth.get_user(token)
 
+        if response.user is None:
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid or expired token"
+            )
+
+        return {
+            "message": "Protected profile accessed",
+            "user": response.user
+        }
+
+    except HTTPException:
+        raise
+
+    except Exception:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or expired token"
+        )
 @app.get("/tasks")
 def tasks():
     db = get_db()
